@@ -7,6 +7,47 @@ from geo import geo_lookup
 from storage import load_visits, save_visits
 
 
+def _parse_user_agent(ua: str | None) -> Dict[str, str]:
+    """Very lightweight UA parsing to guess browser and OS.
+
+    This is intentionally simple – just enough for dashboard display.
+    """
+    if not ua:
+        return {"browser": "Unknown", "os": "Unknown"}
+
+    ua_lower = ua.lower()
+
+    # Browser detection (order matters)
+    if "edg" in ua_lower:
+        browser = "Edge"
+    elif "opr" in ua_lower or "opera" in ua_lower:
+        browser = "Opera"
+    elif "chrome" in ua_lower and "safari" in ua_lower and "edge" not in ua_lower:
+        browser = "Chrome"
+    elif "firefox" in ua_lower:
+        browser = "Firefox"
+    elif "safari" in ua_lower and "chrome" not in ua_lower:
+        browser = "Safari"
+    else:
+        browser = "Other"
+
+    # OS detection
+    if "windows" in ua_lower:
+        os = "Windows"
+    elif "android" in ua_lower:
+        os = "Android"
+    elif "iphone" in ua_lower or "ipad" in ua_lower or "ios" in ua_lower:
+        os = "iOS"
+    elif "mac os x" in ua_lower or "macintosh" in ua_lower:
+        os = "macOS"
+    elif "linux" in ua_lower:
+        os = "Linux"
+    else:
+        os = "Other"
+
+    return {"browser": browser, "os": os}
+
+
 def create_app(config: Dict[str, Any]) -> Flask:
     app = Flask(__name__)
 
@@ -29,17 +70,36 @@ def create_app(config: Dict[str, Any]) -> Flask:
 
         geo = geo_lookup(ip, ip_api) or {}
 
+        # Try to build Google Maps URL if we have lat/lon
+        lat = geo.get("lat")
+        lon = geo.get("lon")
+        google_maps_url = None
+        if isinstance(lat, (int, float)) or isinstance(lon, (int, float)):
+            # Numeric types only
+            try:
+                lat_f = float(lat)
+                lon_f = float(lon)
+                google_maps_url = f"https://www.google.com/maps?q={lat_f},{lon_f}"
+            except Exception:
+                google_maps_url = None
+
+        ua_raw = request.headers.get("User-Agent")
+        ua_info = _parse_user_agent(ua_raw)
+
         record = {
             "time": datetime.now(timezone.utc).isoformat(),
             "ip": ip,
             "country": geo.get("country"),
             "region": geo.get("regionName"),
             "city": geo.get("city"),
-            "lat": geo.get("lat"),
-            "lon": geo.get("lon"),
+            "lat": lat,
+            "lon": lon,
             "isp": geo.get("isp"),
             "token": token,
-            "user_agent": request.headers.get("User-Agent"),
+            "user_agent": ua_raw,
+            "browser": ua_info["browser"],
+            "os": ua_info["os"],
+            "google_maps_url": google_maps_url,
         }
 
         visits = load_visits(visits_path)
