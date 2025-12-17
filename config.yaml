@@ -1,0 +1,14 @@
+tracking:
+  # الرابط الافتراضي الذي يتم التحويل إليه إذا لم يُمرَّر next=
+  default_target_url: "https://example.com/"
+  # خدمة تحديد الموقع الجغرافي من خلال IP
+  ip_info_api: "http://ip-api.com/json"
+
+server:
+  host: "0.0.0.0"
+  port: 5000
+  debug: true
+
+storage:
+  # مكان تخزين سجل الزيارات
+  visits_path: "data/visits.json"
